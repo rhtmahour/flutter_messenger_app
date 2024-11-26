@@ -39,6 +39,8 @@ dependencies:
   firebase_auth: ^5.3.3
   socket_io_client: ^3.0.2
   http: ^1.2.2
+  firebase_storage: ^12.3.6
+  image_picker: ^1.1.2
 
 dev_dependencies:
   flutter_test:
