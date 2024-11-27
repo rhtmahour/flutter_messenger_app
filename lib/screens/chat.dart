@@ -13,16 +13,13 @@ class ChatScreen extends StatelessWidget {
         actions: [
           TextButton(
             onPressed: () {
-              // Sign out the user
               FirebaseAuth.instance.signOut();
-              // Close the dialog and navigate if needed
               Navigator.of(ctx).pop();
             },
             child: const Text('Yes'),
           ),
           TextButton(
             onPressed: () {
-              // Close the dialog
               Navigator.of(ctx).pop();
             },
             child: const Text('No'),
@@ -36,7 +33,8 @@ class ChatScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('FlutterChat'),
+        centerTitle: true,
+        title: const Text('Chat'),
         actions: [
           IconButton(
             onPressed: () => _showSignOutDialog(context),
