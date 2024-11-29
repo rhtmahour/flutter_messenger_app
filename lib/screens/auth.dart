@@ -25,12 +25,18 @@ class _AuthScreenState extends State<AuthScreen> {
   var _enteredPassword = '';
   File? _selectedImage;
   var _isAuthenticating = false;
+  var _enteredUsername = '';
 
   void _submit() async {
     final isValid = _form.currentState!.validate();
 
-    if (!isValid || !_isLogin && _selectedImage == null) {
-      // show error message ...
+    if (!isValid || (!_isLogin && _selectedImage == null)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content:
+              Text('Please complete all required fields and select an image.'),
+        ),
+      );
       return;
     }
 
@@ -40,43 +46,83 @@ class _AuthScreenState extends State<AuthScreen> {
       setState(() {
         _isAuthenticating = true;
       });
-      setState(() {
-        _isAuthenticating = true;
-      });
+
+      UserCredential userCredentials;
+
       if (_isLogin) {
-        final userCredentials = await _firebase.signInWithEmailAndPassword(
-            email: _enteredEmail, password: _enteredPassword);
+        // Login existing user
+        userCredentials = await _firebase.signInWithEmailAndPassword(
+          email: _enteredEmail,
+          password: _enteredPassword,
+        );
       } else {
-        final userCredentials = await _firebase.createUserWithEmailAndPassword(
-            email: _enteredEmail, password: _enteredPassword);
-        //Firebase storage need to be
+        // Register new user
+        userCredentials = await _firebase.createUserWithEmailAndPassword(
+          email: _enteredEmail,
+          password: _enteredPassword,
+        );
+
+        // Upload the image to Firebase Storage
         final storageRef = FirebaseStorage.instance
             .ref()
             .child('user_images')
             .child('${userCredentials.user!.uid}.jpg');
 
-        await storageRef.putFile(_selectedImage!);
+        try {
+          final uploadTask = storageRef.putFile(_selectedImage!);
+
+          // Wait for upload to complete
+          await uploadTask.whenComplete(() => {});
+        } on FirebaseException catch (e) {
+          print('Error during file upload: ${e.message}');
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('File upload failed: ${e.message}'),
+            ),
+          );
+          setState(() {
+            _isAuthenticating = false;
+          });
+          return;
+        }
+
+        // Get the image URL
         final imageUrl = await storageRef.getDownloadURL();
 
+        // Store user data in Firestore
         await FirebaseFirestore.instance
             .collection('users')
             .doc(userCredentials.user!.uid)
             .set({
-          'username': 'to be done...',
+          'username': _enteredUsername,
           'email': _enteredEmail,
           'image_url': imageUrl,
         });
       }
+
+      // Success - Navigate to the main app screen or display success
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Authentication successful!')),
+      );
     } on FirebaseAuthException catch (error) {
-      if (error.code == 'email-already-in-use') {
-        // ...
-      }
-      ScaffoldMessenger.of(context).clearSnackBars();
+      // Handle FirebaseAuth errors
+      print('FirebaseAuth Error: ${error.message}');
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(error.message ?? 'Authentication failed.'),
         ),
       );
+    } catch (e) {
+      // Handle other unexpected errors
+      print('Error: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content:
+              Text('An unexpected error occurred. Please try again later.'),
+        ),
+      );
+    } finally {
+      // Reset authentication state
       setState(() {
         _isAuthenticating = false;
       });
@@ -137,6 +183,23 @@ class _AuthScreenState extends State<AuthScreen> {
                               _enteredEmail = value!;
                             },
                           ),
+                          if (!_isLogin)
+                            TextFormField(
+                              decoration:
+                                  const InputDecoration(labelText: 'username'),
+                              enableSuggestions: false,
+                              validator: (value) {
+                                if (value == null ||
+                                    value.isEmpty ||
+                                    value.trim().length < 4) {
+                                  return 'Please Enter a valid username';
+                                }
+                                return null;
+                              },
+                              onSaved: (value) {
+                                _enteredUsername = value!;
+                              },
+                            ),
                           TextFormField(
                             decoration:
                                 const InputDecoration(labelText: 'Password'),
